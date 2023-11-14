@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/cloud_t_fd.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/cloudtfd.ts",
   "watch": {
     "include": [
       "**"

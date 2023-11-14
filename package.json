@@ -1,8 +1,8 @@
 {
-  "name": "cloud_t_fd",
+  "name": "cloudtfd",
   "version": "0.1.0",
   "bin": {
-    "cloud_t_fd": "bin/cloud_t_fd.js"
+    "cloudtfd": "bin/cloudtfd.js"
   },
   "scripts": {
     "build": "tsc",
