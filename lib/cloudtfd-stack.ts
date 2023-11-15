@@ -180,6 +180,7 @@ export class CloudTFdStack extends cdk.Stack {
             platform: ecrAssets.Platform.LINUX_ARM64
           }),
           environment: {
+            // AWS_S3_CUSTOM_DOMAIN : 
             UPLOAD_PROVIDER: "s3",
             AWS_ACCESS_KEY_ID: s3AccessKey.accessKeyId,
             AWS_S3_BUCKET: bucket.bucketName,
@@ -204,8 +205,8 @@ export class CloudTFdStack extends cdk.Stack {
           cpuArchitecture: ecs.CpuArchitecture.ARM64,
           operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
         },
-        enableExecuteCommand: true,
-        // openListener: false,
+        // enableExecuteCommand: true,
+        openListener: false,
         securityGroups: [ecsSecurityGroup],
         // taskSubnets: {
         //   subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
@@ -223,13 +224,13 @@ export class CloudTFdStack extends cdk.Stack {
     });
 
     // prettier-ignore
-    const s3PrefixList = new AwsManagedPrefixList( this, "CloudfrontOriginPrefixList",
+    const s3PrefixList = new AwsManagedPrefixList( this, "S3PrefixList",
       { name: `com.amazonaws.${this.region}.s3` }
     ).prefixList;
 
     ecsSecurityGroup.addEgressRule(
       ec2.Peer.prefixList(s3PrefixList.prefixListId),
-      ec2.Port.tcp(443)
+      ec2.Port.tcp(80)
     );
 
     dbCluster.connections.allowFrom(
@@ -243,6 +244,23 @@ export class CloudTFdStack extends cdk.Stack {
       ec2.Port.tcp(elasticache_redis.port!),
       "Allow inbound Redis connection"
     );
+
+    // prettier-ignore
+    const albSecurityGroup = new NoOutboundTrafficSecurityGroup(
+      this, "AlbSecurityGroup", { vpc,}
+    );
+
+    // prettier-ignore
+    const cloudfrontPrefixList = new AwsManagedPrefixList( this, "CloudfrontOriginPrefixList",
+      { name: "com.amazonaws.global.cloudfront.origin-facing" }
+    ).prefixList;
+
+    albSecurityGroup.addEgressRule(
+      ec2.Peer.prefixList(s3PrefixList.prefixListId),
+      ec2.Port.tcp(443)
+    );
+
+    loadBalancedFargateService.loadBalancer.addSecurityGroup(albSecurityGroup);
 
     new cloudfront.Distribution(this, "CloudFront", {
       defaultBehavior: {
