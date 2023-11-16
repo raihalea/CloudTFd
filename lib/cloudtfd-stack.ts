@@ -9,10 +9,13 @@ import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ecsPatterns from "aws-cdk-lib/aws-ecs-patterns";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as route53 from "aws-cdk-lib/aws-route53";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import { NoOutboundTrafficSecurityGroup } from "./default-security-group";
 import { AwsManagedPrefixList } from "./aws-managed-prefix-list";
+import { domainName } from "./config/settings";
 
 export class CloudTFdStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -256,11 +259,21 @@ export class CloudTFdStack extends cdk.Stack {
     ).prefixList;
 
     albSecurityGroup.addEgressRule(
-      ec2.Peer.prefixList(s3PrefixList.prefixListId),
+      ec2.Peer.prefixList(cloudfrontPrefixList.prefixListId),
       ec2.Port.tcp(443)
     );
 
     loadBalancedFargateService.loadBalancer.addSecurityGroup(albSecurityGroup);
+
+    const ctfDomain: string = `ctf.${domainName}`;
+    const hostedZone = route53.HostedZone.fromLookup(this, "Domain", {
+      domainName,
+    });
+
+    const certificate = new acm.Certificate(this, "Cert", {
+      domainName: ctfDomain,
+      validation: acm.CertificateValidation.fromDns(hostedZone),
+    });
 
     new cloudfront.Distribution(this, "CloudFront", {
       defaultBehavior: {
@@ -269,6 +282,8 @@ export class CloudTFdStack extends cdk.Stack {
           { protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY }
         ),
       },
+      domainNames: [ctfDomain],
+      certificate,
     });
   }
 }
