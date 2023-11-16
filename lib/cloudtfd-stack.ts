@@ -10,6 +10,7 @@ import * as ecsPatterns from "aws-cdk-lib/aws-ecs-patterns";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as route53 from "aws-cdk-lib/aws-route53";
+import * as targets from "aws-cdk-lib/aws-route53-targets";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
@@ -233,7 +234,7 @@ export class CloudTFdStack extends cdk.Stack {
 
     ecsSecurityGroup.addEgressRule(
       ec2.Peer.prefixList(s3PrefixList.prefixListId),
-      ec2.Port.tcp(80)
+      ec2.Port.tcp(443)
     );
 
     dbCluster.connections.allowFrom(
@@ -258,14 +259,15 @@ export class CloudTFdStack extends cdk.Stack {
       { name: "com.amazonaws.global.cloudfront.origin-facing" }
     ).prefixList;
 
-    albSecurityGroup.addEgressRule(
+    albSecurityGroup.addIngressRule(
       ec2.Peer.prefixList(cloudfrontPrefixList.prefixListId),
-      ec2.Port.tcp(443)
+      ec2.Port.tcp(80)
     );
 
     loadBalancedFargateService.loadBalancer.addSecurityGroup(albSecurityGroup);
 
-    const ctfDomain: string = `ctf.${domainName}`;
+    const ctfRecord: string = "ctf"
+    const ctfDomain: string = `${ctfRecord}.${domainName}`;
     const hostedZone = route53.HostedZone.fromLookup(this, "Domain", {
       domainName,
     });
@@ -275,15 +277,31 @@ export class CloudTFdStack extends cdk.Stack {
       validation: acm.CertificateValidation.fromDns(hostedZone),
     });
 
-    new cloudfront.Distribution(this, "CloudFront", {
+    // prettier-ignore
+    const distribution = new cloudfront.Distribution(this, "CloudFront", {
       defaultBehavior: {
         origin: new origins.LoadBalancerV2Origin(
           loadBalancedFargateService.loadBalancer,
           { protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY }
         ),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_AND_CLOUDFRONT_2022,
+        compress: true,
       },
       domainNames: [ctfDomain],
       certificate,
     });
+
+    new route53.ARecord(this, "ARecord",{
+      recordName: `${ctfRecord}`,
+      zone: hostedZone,
+      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution))
+    })
+    new route53.AaaaRecord(this, "AaaaRecord",{
+      recordName: `${ctfRecord}`,
+      zone: hostedZone,
+      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution))
+    })
+
   }
 }
