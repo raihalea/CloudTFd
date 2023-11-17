@@ -99,10 +99,10 @@ export class CloudTFdStack extends cdk.Stack {
         caCertificate: rds.CaCertificate.RDS_CA_ECC384_G1,
       }),
       readers: [
-        // rds.ClusterInstance.serverlessV2("reader1", {
-        //   caCertificate: rds.CaCertificate.RDS_CA_ECC384_G1,
-        //   scaleWithWriter: true,
-        // }),
+        rds.ClusterInstance.serverlessV2("reader1", {
+          caCertificate: rds.CaCertificate.RDS_CA_ECC384_G1,
+          scaleWithWriter: true,
+        }),
       ],
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
@@ -112,7 +112,7 @@ export class CloudTFdStack extends cdk.Stack {
       serverlessV2MaxCapacity: 32,
       serverlessV2MinCapacity: 0.5,
       storageEncrypted: true,
-      removalPolicy: cdk.RemovalPolicy.DESTROY, //
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     // prettier-ignore
@@ -165,6 +165,12 @@ export class CloudTFdStack extends cdk.Stack {
     );
     elasticache_redis.addDependency(redisSubnetGroup);
 
+    const ctfdSecretKey = new secretsmanager.Secret(this, "CtfdSecretKey", {
+      generateSecretString: {
+        passwordLength: 32,
+      },
+    });
+
     // prettier-ignore
     const ecsSecurityGroup = new NoOutboundTrafficSecurityGroup(
       this, "EcsSecurityGroup", { vpc });
@@ -177,7 +183,7 @@ export class CloudTFdStack extends cdk.Stack {
       new ecsPatterns.ApplicationLoadBalancedFargateService(this, "Service", {
         cluster,
         memoryLimitMiB: 1024,
-        desiredCount: 1,
+        desiredCount: 2,
         cpu: 512,
         taskImageOptions: {
           image: ecs.ContainerImage.fromAsset("./CTFd", {
@@ -199,6 +205,7 @@ export class CloudTFdStack extends cdk.Stack {
             REVERSE_PROXY: "true",
           },
           secrets: {
+            SECRET_KEY: ecs.Secret.fromSecretsManager( ctfdSecretKey ),
             AWS_SECRET_ACCESS_KEY: ecs.Secret.fromSecretsManager( s3SecretAccessKey ),
             DATABASE_PASSWORD: ecs.Secret.fromSecretsManager( dbCluster.secret!, "password"),
             REDIS_PASSWORD: ecs.Secret.fromSecretsManager( redisAuth, "password" ),
@@ -266,7 +273,7 @@ export class CloudTFdStack extends cdk.Stack {
 
     loadBalancedFargateService.loadBalancer.addSecurityGroup(albSecurityGroup);
 
-    const ctfRecord: string = "ctf"
+    const ctfRecord: string = "ctf";
     const ctfDomain: string = `${ctfRecord}.${domainName}`;
     const hostedZone = route53.HostedZone.fromLookup(this, "Domain", {
       domainName,
@@ -278,30 +285,53 @@ export class CloudTFdStack extends cdk.Stack {
     });
 
     // prettier-ignore
+    const origin = new origins.LoadBalancerV2Origin(
+      loadBalancedFargateService.loadBalancer,
+      { protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY }
+    )
+    // prettier-ignore
     const distribution = new cloudfront.Distribution(this, "CloudFront", {
       defaultBehavior: {
-        origin: new origins.LoadBalancerV2Origin(
-          loadBalancedFargateService.loadBalancer,
-          { protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY }
-        ),
+        origin,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_AND_CLOUDFRONT_2022,
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         compress: true,
+      },
+      additionalBehaviors: {
+        "themes/*": {
+          origin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_AND_CLOUDFRONT_2022,
+          compress: true,
+        },
+        "files/*": {
+          origin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_AND_CLOUDFRONT_2022,
+          compress: true,
+        }
       },
       domainNames: [ctfDomain],
       certificate,
     });
 
-    new route53.ARecord(this, "ARecord",{
+    new route53.ARecord(this, "ARecord", {
       recordName: `${ctfRecord}`,
       zone: hostedZone,
-      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution))
-    })
-    new route53.AaaaRecord(this, "AaaaRecord",{
+      target: route53.RecordTarget.fromAlias(
+        new targets.CloudFrontTarget(distribution)
+      ),
+    });
+    new route53.AaaaRecord(this, "AaaaRecord", {
       recordName: `${ctfRecord}`,
       zone: hostedZone,
-      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution))
-    })
-
+      target: route53.RecordTarget.fromAlias(
+        new targets.CloudFrontTarget(distribution)
+      ),
+    });
   }
 }
