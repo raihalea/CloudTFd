@@ -1,5 +1,24 @@
 # Welcome to your CDK TypeScript project
 
+CTFdをCDKでAWSにデプロイするもの
+
+- /lib/config/settings.ts.copyをsettings.tsにコピーして中身を埋める
+  - デプロイするAWSのアカウントIDとリージョン
+  - 事前に用意したRoute53のHostedZone
+
+- 作成されるもの
+  - VPC / VPC Endpoint
+  - ECS / Fargate
+  - ECR
+  - ALB
+  - S3
+  - Elasticache for Redis
+  - RDS Aurora Serverless
+  - CloudFront
+  - Route53 records
+  - Secrets Manager
+  - etc...
+
 This is a blank project for CDK development with TypeScript.
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
