@@ -135,7 +135,7 @@ export class CloudTFdStack extends cdk.Stack {
       generateSecretString: {
         secretStringTemplate: JSON.stringify({ username: REDIS_USER }),
         generateStringKey: "password",
-        passwordLength: 32,
+        passwordLength: 128,
         excludePunctuation: true,
       },
     });

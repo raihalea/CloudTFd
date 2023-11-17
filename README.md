@@ -1,6 +1,8 @@
 # Welcome to your CDK TypeScript project
 
 CTFdをCDKでAWSにデプロイするもの
+ログインとChallengeは簡単に確認しました。
+CloudFrontのキャッシュ部分が悪さをする可能性がありますが、ちゃんと検証できていません。
 
 - /lib/config/settings.ts.copyをsettings.tsにコピーして中身を埋める
   - デプロイするAWSのアカウントIDとリージョン
