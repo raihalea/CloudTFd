@@ -98,12 +98,12 @@ export class CloudTFdStack extends cdk.Stack {
       writer: rds.ClusterInstance.serverlessV2("writer", {
         caCertificate: rds.CaCertificate.RDS_CA_ECC384_G1,
       }),
-      readers: [
-        rds.ClusterInstance.serverlessV2("reader1", {
-          caCertificate: rds.CaCertificate.RDS_CA_ECC384_G1,
-          scaleWithWriter: true,
-        }),
-      ],
+      // readers: [
+      //   rds.ClusterInstance.serverlessV2("reader1", {
+      //     caCertificate: rds.CaCertificate.RDS_CA_ECC384_G1,
+      //     scaleWithWriter: true,
+      //   }),
+      // ],
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
       },
