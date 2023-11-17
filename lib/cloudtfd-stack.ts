@@ -190,7 +190,6 @@ export class CloudTFdStack extends cdk.Stack {
             platform: ecrAssets.Platform.LINUX_ARM64
           }),
           environment: {
-            // AWS_S3_CUSTOM_DOMAIN : 
             UPLOAD_PROVIDER: "s3",
             AWS_ACCESS_KEY_ID: s3AccessKey.accessKeyId,
             AWS_S3_BUCKET: bucket.bucketName,
@@ -219,9 +218,6 @@ export class CloudTFdStack extends cdk.Stack {
         // enableExecuteCommand: true,
         openListener: false,
         securityGroups: [ecsSecurityGroup],
-        // taskSubnets: {
-        //   subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-        // },
       });
 
     loadBalancedFargateService.targetGroup.configureHealthCheck({
