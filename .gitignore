@@ -9,3 +9,4 @@ cdk.out
 
 # config file
 lib/config/settings.ts
+lib/config/config.ts
