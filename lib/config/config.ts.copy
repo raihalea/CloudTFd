@@ -1,0 +1,21 @@
+import { Environment } from "aws-cdk-lib";
+
+export const awsConfig: Environment = {
+  account: "123456789012",
+  region: "us-west-2",
+};
+
+export const databaseConfig = {
+  DB_USERNAME: "ctfd",
+}
+
+export const redisConfig = {
+  REDIS_USER: "ctfd",
+  REDIS_PORT: 6379,
+}
+
+// RECORD.DOMAIN_NAME
+export const cdnConfig = {
+  DOMAIN_NAME: "your domain",
+  RECORD: "ctf",
+}
