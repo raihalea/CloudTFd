@@ -1,11 +1,6 @@
 import { Aws } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import {
-  InterfaceVpcEndpoint,
-  Peer,
-  Port,
-  IVpc,
-} from "aws-cdk-lib/aws-ec2";
+import { InterfaceVpcEndpoint, Peer, Port, IVpc } from "aws-cdk-lib/aws-ec2";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import {
   Cluster,
@@ -22,6 +17,8 @@ import { AwsManagedPrefixList } from "./utils/aws-managed-prefix-list";
 import { BucketWithAccessKey } from "./bucket";
 import { Redis } from "./redis";
 import { Database } from "./database";
+import { Domain } from "./domain";
+import { domainConfig } from "../config/config";
 
 export interface ApplicationPatternsProps {
   readonly vpc: IVpc;
@@ -31,8 +28,6 @@ export interface ApplicationPatternsProps {
 }
 
 export class ApplicationPatterns extends Construct {
-  readonly lb: ApplicationLoadBalancer;
-
   constructor(scope: Construct, id: string, props: ApplicationPatternsProps) {
     super(scope, id);
 
@@ -55,6 +50,11 @@ export class ApplicationPatterns extends Construct {
       generateSecretString: {
         passwordLength: 32,
       },
+    });
+
+    const ctfAlbDomain = new Domain(this, "Domain", {
+      hostname: domainConfig.ALB_HOSTNAME,
+      domain: domainConfig.DOMAIN_NAME,
     });
 
     // prettier-ignore
@@ -99,6 +99,10 @@ export class ApplicationPatterns extends Construct {
       },
       // enableExecuteCommand: true,
       openListener: false,
+      listenerPort: 443,
+      domainName: ctfAlbDomain.fqdn,
+      domainZone: ctfAlbDomain.hostedZone,
+      certificate: ctfAlbDomain.certificate,
       securityGroups: [ecsSecurityGroup],
     });
 
@@ -145,10 +149,9 @@ export class ApplicationPatterns extends Construct {
 
     albSecurityGroup.addIngressRule(
       Peer.prefixList(cloudfrontPrefixList.prefixListId),
-      Port.tcp(80)
+      Port.tcp(443)
     );
 
-    this.lb = loadBalancedFargateService.loadBalancer;
-    this.lb.addSecurityGroup(albSecurityGroup);
+    loadBalancedFargateService.loadBalancer.addSecurityGroup(albSecurityGroup);
   }
 }

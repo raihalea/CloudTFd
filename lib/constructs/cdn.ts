@@ -1,58 +1,33 @@
 import { Construct } from "constructs";
 import { CfnReplicationGroup } from "aws-cdk-lib/aws-elasticache";
-import { IApplicationLoadBalancer } from "aws-cdk-lib/aws-elasticloadbalancingv2";
-import {
-  HostedZone,
-  ARecord,
-  AaaaRecord,
-  RecordTarget,
-} from "aws-cdk-lib/aws-route53";
+import { ARecord, AaaaRecord, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { CloudFrontTarget } from "aws-cdk-lib/aws-route53-targets";
 import {
-  Certificate,
-  CertificateValidation,
-} from "aws-cdk-lib/aws-certificatemanager";
-import {
-  OriginProtocolPolicy,
   Distribution,
   AllowedMethods,
   ViewerProtocolPolicy,
   OriginRequestPolicy,
   CachePolicy,
 } from "aws-cdk-lib/aws-cloudfront";
-import { LoadBalancerV2Origin } from "aws-cdk-lib/aws-cloudfront-origins";
-import { cdnConfig } from "../config/config";
+import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { Domain } from "./domain";
+import { domainConfig } from "../config/config";
 
-export interface CdnProps {
-  readonly lb: IApplicationLoadBalancer;
-}
+export interface CdnProps {}
 
 export class Cdn extends Construct {
   readonly elasticache_redis: CfnReplicationGroup;
 
-  constructor(scope: Construct, id: string, props: CdnProps) {
+  constructor(scope: Construct, id: string, props?: CdnProps) {
     super(scope, id);
 
-    const { lb } = props;
-
-    // prettier-ignore
-
-    const ctfRecord: string = cdnConfig.RECORD;
-    const ctfDomain: string = `${ctfRecord}.${cdnConfig.DOMAIN_NAME}`;
-    const hostedZone = HostedZone.fromLookup(this, "Domain", {
-      domainName: cdnConfig.DOMAIN_NAME,
-    });
-
-    const certificate = new Certificate(this, "Cert", {
-      domainName: ctfDomain,
-      validation: CertificateValidation.fromDns(hostedZone),
+    const ctfDomain = new Domain(this, "Domain", {
+      hostname: domainConfig.HOSTNAME,
+      domain: domainConfig.DOMAIN_NAME,
     });
 
     // prettier-ignore
-    const origin = new LoadBalancerV2Origin(
-      lb,
-      { protocolPolicy: OriginProtocolPolicy.HTTP_ONLY }
-    )
+    const origin = new HttpOrigin(`${domainConfig.ALB_HOSTNAME}.${domainConfig.DOMAIN_NAME}`)
     // prettier-ignore
     const distribution = new Distribution(this, "CloudFront", {
       defaultBehavior: {
@@ -79,18 +54,18 @@ export class Cdn extends Construct {
           compress: true,
         }
       },
-      domainNames: [ctfDomain],
-      certificate,
+      domainNames: [ctfDomain.fqdn],
+      certificate: ctfDomain.certificate,
     });
 
     new ARecord(this, "ARecord", {
-      recordName: `${ctfRecord}`,
-      zone: hostedZone,
+      recordName: `${domainConfig.HOSTNAME}`,
+      zone: ctfDomain.hostedZone,
       target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
     });
     new AaaaRecord(this, "AaaaRecord", {
-      recordName: `${ctfRecord}`,
-      zone: hostedZone,
+      recordName: `${domainConfig.HOSTNAME}`,
+      zone: ctfDomain.hostedZone,
       target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
     });
   }
