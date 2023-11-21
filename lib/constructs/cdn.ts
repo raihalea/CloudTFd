@@ -10,7 +10,7 @@ import {
   CachePolicy,
 } from "aws-cdk-lib/aws-cloudfront";
 import { HttpOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
-import { Domain } from "./domain";
+import { Domain } from "./utils/domain";
 import { domainConfig } from "../config/config";
 
 export interface CdnProps {}

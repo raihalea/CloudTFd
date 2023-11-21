@@ -17,7 +17,7 @@ import { AwsManagedPrefixList } from "./utils/aws-managed-prefix-list";
 import { BucketWithAccessKey } from "./bucket";
 import { Redis } from "./redis";
 import { Database } from "./database";
-import { Domain } from "./domain";
+import { Domain } from "./utils/domain";
 import { domainConfig } from "../config/config";
 
 export interface ApplicationPatternsProps {

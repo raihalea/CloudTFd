@@ -22,7 +22,7 @@ import {
   CachePolicy,
 } from "aws-cdk-lib/aws-cloudfront";
 import { LoadBalancerV2Origin } from "aws-cdk-lib/aws-cloudfront-origins";
-import { domainConfig } from "../config/config";
+import { domainConfig } from "../../config/config";
 
 export interface DomainProps {
   readonly hostname: string;
