@@ -10,7 +10,7 @@ export class CloudTFdStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const base = new Base(this, "Base", {});
+    const base = new Base(this, "Base");
     const database = new Database(this, "Database", { vpc: base.vpc });
     const redis = new Redis(this, "Redis", { vpc: base.vpc });
     const ctfd = new ApplicationPatterns(this, "ApplicationPatterns", {
@@ -19,6 +19,6 @@ export class CloudTFdStack extends Stack {
       database,
       redis,
     });
-    const cdn = new Cdn(this, "Cdn", { lb: ctfd.lb });
+    const cdn = new Cdn(this, "Cdn");
   }
 }
