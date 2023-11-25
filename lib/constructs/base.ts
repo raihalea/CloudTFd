@@ -1,4 +1,3 @@
-import { RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import {
   Vpc,
@@ -7,9 +6,6 @@ import {
   InterfaceVpcEndpointAwsService,
   InterfaceVpcEndpoint,
 } from "aws-cdk-lib/aws-ec2";
-import { Bucket } from "aws-cdk-lib/aws-s3";
-import { Secret } from "aws-cdk-lib/aws-secretsmanager";
-import { User, AccessKey } from "aws-cdk-lib/aws-iam";
 
 export interface BaseProps {}
 
@@ -68,18 +64,5 @@ export class Base extends Construct {
       this.endpointsForECS.push(endpoint);
     }
 
-    const bucket = new Bucket(this, "S3", {
-      enforceSSL: true,
-      autoDeleteObjects: true,
-      removalPolicy: RemovalPolicy.DESTROY,
-    });
-
-    const user = new User(this, "S3User");
-    const s3AccessKey = new AccessKey(this, "S3AccessKey", { user });
-    // prettier-ignore
-    const s3SecretAccessKey = new Secret(this, "S3SecretAccessKey", {
-      secretStringValue: s3AccessKey.secretAccessKey,
-    });
-    bucket.grantReadWrite(user);
   }
 }

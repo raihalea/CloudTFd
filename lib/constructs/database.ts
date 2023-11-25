@@ -1,9 +1,6 @@
 import { RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import {
-  Vpc,
-  SubnetType,
-} from "aws-cdk-lib/aws-ec2";
+import { Vpc, SubnetType } from "aws-cdk-lib/aws-ec2";
 import {
   DatabaseCluster,
   DatabaseClusterEngine,

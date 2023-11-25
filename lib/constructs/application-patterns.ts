@@ -6,12 +6,8 @@ import {
   Cluster,
   ContainerImage,
   Secret as EcsScret,
-  CpuArchitecture,
-  OperatingSystemFamily,
 } from "aws-cdk-lib/aws-ecs";
 import { ApplicationLoadBalancedFargateService } from "aws-cdk-lib/aws-ecs-patterns";
-import { Platform } from "aws-cdk-lib/aws-ecr-assets";
-import { ApplicationLoadBalancer } from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import { NoOutboundTrafficSecurityGroup } from "./utils/default-security-group";
 import { AwsManagedPrefixList } from "./utils/aws-managed-prefix-list";
 import { BucketWithAccessKey } from "./bucket";
@@ -22,6 +18,7 @@ import { domainConfig } from "../config/config";
 
 export interface ApplicationPatternsProps {
   readonly vpc: IVpc;
+  readonly bucketWithAccessKey: BucketWithAccessKey;
   readonly endpointsForECS: InterfaceVpcEndpoint[];
   readonly database: Database;
   readonly redis: Redis;
@@ -31,7 +28,8 @@ export class ApplicationPatterns extends Construct {
   constructor(scope: Construct, id: string, props: ApplicationPatternsProps) {
     super(scope, id);
 
-    const { vpc, endpointsForECS, database, redis } = props;
+    const { vpc, bucketWithAccessKey, endpointsForECS, database, redis } =
+      props;
 
     // prettier-ignore
     const albSecurityGroup = new NoOutboundTrafficSecurityGroup(
@@ -42,8 +40,6 @@ export class ApplicationPatterns extends Construct {
     const ecsSecurityGroup = new NoOutboundTrafficSecurityGroup(
       this, "EcsSecurityGroup", { vpc }
     );
-
-    const bucketWithAccessKey = new BucketWithAccessKey(this, "Default");
 
     // prettier-ignore
     const ctfdSecretKey = new Secret(this, "CtfdSecretKey", {
@@ -65,16 +61,19 @@ export class ApplicationPatterns extends Construct {
     new ApplicationLoadBalancedFargateService(this, "Service", {
       cluster,
       memoryLimitMiB: 1024,
-      desiredCount: 2,
+      desiredCount: 1,
       cpu: 512,
       taskImageOptions: {
         image: ContainerImage.fromAsset("./CTFd", {
-          platform: Platform.LINUX_ARM64
+          // platform: Platform.LINUX_ARM64
         }),
         environment: {
+          WORKERS: "4",
           UPLOAD_PROVIDER: "s3",
           AWS_ACCESS_KEY_ID: bucketWithAccessKey.s3AccessKey.accessKeyId,
-          AWS_S3_BUCKET: bucketWithAccessKey.bucket.bucketName,
+          AWS_S3_BUCKET: `${bucketWithAccessKey.bucket.bucketName}`,
+          // AWS_S3_CUSTOM_DOMAIN: `${domainConfig.HOSTNAME}.${domainConfig.DOMAIN_NAME}`,
+          // AWS_S3_CUSTOM_PREFIX: "files/",
           DATABASE_USER: database.DB_USERNAME,
           DATABASE_HOST: database.dbCluster.clusterEndpoint.hostname,
           DATABASE_PORT: String(database.dbCluster.clusterEndpoint.port),
@@ -93,10 +92,10 @@ export class ApplicationPatterns extends Construct {
         },
         containerPort: 8000,
       },
-      runtimePlatform: {
-        cpuArchitecture: CpuArchitecture.ARM64,
-        operatingSystemFamily: OperatingSystemFamily.LINUX,
-      },
+      // runtimePlatform: {
+      //   cpuArchitecture: CpuArchitecture.ARM64,
+      //   operatingSystemFamily: OperatingSystemFamily.LINUX,
+      // },
       // enableExecuteCommand: true,
       openListener: false,
       listenerPort: 443,
