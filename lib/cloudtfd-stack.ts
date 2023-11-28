@@ -4,10 +4,10 @@ import { Base } from "./constructs/base";
 import { BucketWithAccessKey } from "./constructs/bucket";
 import { Database } from "./constructs/database";
 import { Redis } from "./constructs/redis";
+// import { Mail } from "./constructs/mail";
 import { ApplicationPatterns } from "./constructs/application-patterns";
-import { Cdn } from "./constructs/cdn";
 import { Waf } from "./constructs/waf";
-import { Mail } from "./constructs/mail";
+import { Cdn } from "./constructs/cdn";
 
 export class CloudTFdStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -17,6 +17,7 @@ export class CloudTFdStack extends Stack {
     const bucketWithAccessKey = new BucketWithAccessKey(this, "Default");
     const database = new Database(this, "Database", { vpc: base.vpc });
     const redis = new Redis(this, "Redis", { vpc: base.vpc });
+    // const main = new Mail(this, "Mail")
     const ctfd = new ApplicationPatterns(this, "ApplicationPatterns", {
       vpc: base.vpc,
       bucketWithAccessKey,
@@ -29,6 +30,5 @@ export class CloudTFdStack extends Stack {
       bucketWithAccessKey,
       webAclId: waf.webAclId,
     });
-    // const main = new Mail(this, "Mail")
   }
 }

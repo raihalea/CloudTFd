@@ -15,7 +15,15 @@ export const redisConfig = {
 }
 
 // RECORD.DOMAIN_NAME
-export const cdnConfig = {
+export const domainConfig = {
   DOMAIN_NAME: "your domain",
   RECORD: "ctf",
+  ALB_HOSTNAME: "ctf-alb",
+  MAIL: "mail",
+}
+
+export const basicAuthConfig = {
+  IsEnabled : true,
+  USER: "user",
+  PASS: "pass",
 }

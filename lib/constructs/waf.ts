@@ -84,25 +84,25 @@ export class Waf extends Construct {
      * and requests will be blocked once this limit is reached.
      * The IP address is automatically unblocked after it falls below the limit.
      */
-    var ruleLimitRequests100: CfnWebACL.RuleProperty = {
-      name: "LimitRequests100",
+    var ruleLimitRequests: CfnWebACL.RuleProperty = {
+      name: "LimitRequests",
       priority: 1,
       action: {
         block: {}, // To disable, change to *count*
       },
       statement: {
         rateBasedStatement: {
-          limit: 100,
+          limit: 1000,
           aggregateKeyType: "IP",
         },
       },
       visibilityConfig: {
         sampledRequestsEnabled: true,
         cloudWatchMetricsEnabled: true,
-        metricName: "LimitRequests100",
+        metricName: "LimitRequests",
       },
-    }; // limit requests to 100
-    rules.push(ruleLimitRequests100);
+    }; // limit requests
+    rules.push(ruleLimitRequests);
 
     return rules;
   } // function makeRules
@@ -115,42 +115,42 @@ export class Waf extends Construct {
      * aws wafv2 list-available-managed-rule-groups --scope CLOUDFRONT
      */
     const managedRules: listOfRules[] = [
-      {
-        name: "AWSManagedRulesCommonRuleSet",
-        priority: 10,
-        overrideAction: "none",
-        excludedRules: [],
-      },
-      {
-        name: "AWSManagedRulesAmazonIpReputationList",
-        priority: 20,
-        overrideAction: "none",
-        excludedRules: [],
-      },
-      {
-        name: "AWSManagedRulesKnownBadInputsRuleSet",
-        priority: 30,
-        overrideAction: "none",
-        excludedRules: [],
-      },
-      {
-        name: "AWSManagedRulesAnonymousIpList",
-        priority: 40,
-        overrideAction: "none",
-        excludedRules: [],
-      },
-      {
-        name: "AWSManagedRulesLinuxRuleSet",
-        priority: 50,
-        overrideAction: "none",
-        excludedRules: [],
-      },
-      {
-        name: "AWSManagedRulesUnixRuleSet",
-        priority: 60,
-        overrideAction: "none",
-        excludedRules: [],
-      },
+      // {
+      //   name: "AWSManagedRulesCommonRuleSet",
+      //   priority: 10,
+      //   overrideAction: "none",
+      //   excludedRules: [],
+      // },
+      // {
+      //   name: "AWSManagedRulesAmazonIpReputationList",
+      //   priority: 20,
+      //   overrideAction: "none",
+      //   excludedRules: [],
+      // },
+      // {
+      //   name: "AWSManagedRulesKnownBadInputsRuleSet",
+      //   priority: 30,
+      //   overrideAction: "none",
+      //   excludedRules: [],
+      // },
+      // {
+      //   name: "AWSManagedRulesAnonymousIpList",
+      //   priority: 40,
+      //   overrideAction: "none",
+      //   excludedRules: [],
+      // },
+      // {
+      //   name: "AWSManagedRulesLinuxRuleSet",
+      //   priority: 50,
+      //   overrideAction: "none",
+      //   excludedRules: [],
+      // },
+      // {
+      //   name: "AWSManagedRulesSQLiRuleSet",
+      //   priority: 60,
+      //   overrideAction: "none",
+      //   excludedRules: [],
+      // },
     ];
 
     // WAF - CloudFront

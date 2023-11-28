@@ -139,7 +139,7 @@ export class ApplicationPatterns extends Construct {
       "Allow inbound Redis connection"
     );
 
-    // rettier-ignore
+    // prettier-ignore
     const cloudfrontPrefixList = new AwsManagedPrefixList(
       this,
       "CloudfrontOriginPrefixList",
