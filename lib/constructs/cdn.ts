@@ -53,25 +53,15 @@ export class Cdn extends Construct {
       enableAcceptEncodingBrotli: true,
     });
 
-    const testPolicy = new CachePolicy(this, "test", {
-      defaultTtl: Duration.days(2),
-      minTtl: Duration.minutes(1),
-      maxTtl: Duration.days(10),
-      cookieBehavior: CacheCookieBehavior.none(),
-      headerBehavior: CacheHeaderBehavior.allowList(
-        "Host",
-        "CloudFront-Forwarded-Proto"
-      ),
-      queryStringBehavior: CacheQueryStringBehavior.none(),
-      enableAcceptEncodingGzip: true,
-      enableAcceptEncodingBrotli: true,
-    });
-
-    const allViewRequestPolicy = new OriginRequestPolicy(this, "TestRequestPolicy",{
-      cookieBehavior: OriginRequestCookieBehavior.all(),
-      headerBehavior: OriginRequestHeaderBehavior.denyList("Authorization"),
-      queryStringBehavior: OriginRequestQueryStringBehavior.all(),
-    })
+    const allViewRequestPolicy = new OriginRequestPolicy(
+      this,
+      "TestRequestPolicy",
+      {
+        cookieBehavior: OriginRequestCookieBehavior.all(),
+        headerBehavior: OriginRequestHeaderBehavior.denyList("Authorization"),
+        queryStringBehavior: OriginRequestQueryStringBehavior.all(),
+      }
+    );
 
     // prettier-ignore
     const albOrigin = new HttpOrigin(`${domainConfig.ALB_HOSTNAME}.${domainConfig.DOMAIN_NAME}`)
@@ -86,7 +76,7 @@ export class Cdn extends Construct {
         allowedMethods: AllowedMethods.ALLOW_ALL,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         originRequestPolicy: allViewRequestPolicy,
-        cachePolicy: cachePolicy,
+        cachePolicy: CachePolicy.CACHING_DISABLED,
         compress: true,
         functionAssociations: functionAssociations
       },
@@ -102,7 +92,7 @@ export class Cdn extends Construct {
           origin: albOrigin,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_ALL,
-          cachePolicy: cachePolicy,
+          cachePolicy: CachePolicy.CACHING_DISABLED,
           originRequestPolicy: allViewRequestPolicy,
           compress: true,
           functionAssociations: functionAssociations
@@ -112,7 +102,7 @@ export class Cdn extends Construct {
           allowedMethods: AllowedMethods.ALLOW_ALL,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           originRequestPolicy: allViewRequestPolicy,
-          cachePolicy: cachePolicy,
+          cachePolicy: CachePolicy.CACHING_DISABLED,
           compress: true,
           functionAssociations: functionAssociations
         },

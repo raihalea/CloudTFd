@@ -4,7 +4,7 @@ import { Base } from "./constructs/base";
 import { BucketWithAccessKey } from "./constructs/bucket";
 import { Database } from "./constructs/database";
 import { Redis } from "./constructs/redis";
-// import { Mail } from "./constructs/mail";
+import { Mail } from "./constructs/mail";
 import { ApplicationPatterns } from "./constructs/application-patterns";
 import { Waf } from "./constructs/waf";
 import { Cdn } from "./constructs/cdn";
