@@ -1,13 +1,5 @@
 import { CfnWebACL } from "aws-cdk-lib/aws-wafv2";
 
-// type listOfRules = {
-//   name: string;
-//   priority?: number;
-//   overrideAction: string;
-//   excludedRules: string[];
-//   scopeDownStatement?: CfnWebACL.StatementProperty;
-// };
-
 interface listOfRules {
   name: string;
   priority?: number;
@@ -22,7 +14,7 @@ export const managedRules: listOfRules[] = [
     // priority: 20,
     overrideAction: "none",
     excludedRules: ["SizeRestrictions_BODY"],
-    // scopeDownStatement: startsWith("/admin"),
+    // scopeDownStatement: not(startsWith("/admin")),
   },
   {
     name: "AWSManagedRulesAmazonIpReputationList",
@@ -72,4 +64,13 @@ export function startsWith(path: string): CfnWebACL.StatementProperty {
       ],
     },
   };
+}
+
+
+export function not(st: CfnWebACL.StatementProperty): CfnWebACL.StatementProperty {
+  return {
+    notStatement: {
+      statement:st
+    }
+  }
 }
