@@ -2,22 +2,35 @@ import { Environment } from "aws-cdk-lib";
 
 export const awsConfig: Environment = {
   account: "123456789012",
-  region: "us-west-2",
+  region: "us-east-1",
 };
 
-export const databaseConfig = {
+export interface DatabaseConfig {
+  DB_USERNAME: string;
+}
+export const databaseConfig: DatabaseConfig = {
   DB_USERNAME: "ctfd",
 }
 
-export const redisConfig = {
+export interface RedisConfig {
+  REDIS_USER: string;
+  REDIS_PORT: number;
+}
+export const redisConfig: RedisConfig = {
   REDIS_USER: "ctfd",
   REDIS_PORT: 6379,
 }
 
 // RECORD.DOMAIN_NAME
-export const domainConfig = {
-  DOMAIN_NAME: "your domain",
-  RECORD: "ctf",
+export interface DomainConfig {
+  DOMAIN_NAME: string;
+  HOSTNAME: string;
+  ALB_HOSTNAME: string;
+  MAIL: string;
+}
+export const domainConfig:DomainConfig = {
+  DOMAIN_NAME: "example.com",
+  HOSTNAME: "ctf",
   ALB_HOSTNAME: "ctf-alb",
   MAIL: "mail",
 }
@@ -27,3 +40,16 @@ export const basicAuthConfig = {
   USER: "user",
   PASS: "pass",
 }
+
+export const wafConfig = {
+  IsEnable : true,
+  IpRestriction:{
+    IsEnable : true,
+    AllowIPv4List:[
+      // "192.0.2.0/24",
+      // "198.51.100.0/24"
+    ],
+    AllowIPv6List:[
+      // "2001:db8::/32"
+    ],
+  }
