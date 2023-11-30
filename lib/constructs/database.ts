@@ -26,7 +26,7 @@ export class Database extends Construct {
     const { vpc } = props;
 
     // prettier-ignore
-    this.DB_USERNAME = databaseConfig.DB_USERNAME;
+    this.DB_USERNAME = databaseConfig.DB_USER;
 
     // prettier-ignore
     const dbClusterSecurityGroup = new NoOutboundTrafficSecurityGroup(
@@ -52,6 +52,7 @@ export class Database extends Construct {
       },
       vpc,
       securityGroups: [dbClusterSecurityGroup],
+      port: databaseConfig.DB_PORT,
       serverlessV2MaxCapacity: 32,
       serverlessV2MinCapacity: 0.5,
       storageEncrypted: true,
