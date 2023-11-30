@@ -1,8 +1,8 @@
 import { Construct } from "constructs";
 import { CfnRuleGroup, CfnWebACL, CfnIPSet } from "aws-cdk-lib/aws-wafv2";
 import { wafConfig } from "../config/config";
-// import { managedRules } from "../config/wafManagedRule-config";
-import * as wafState from "../constructs/utils/waf-statement";
+// import * as WafStatements from "../constructs/utils/waf-statement";
+import { WafStatements } from "./utils/waf-statement";
 
 export interface WafProps {}
 
@@ -92,18 +92,18 @@ export class Waf extends Construct {
       ipAddressVersion: "IPV6",
       addresses: wafConfig.blockNonSpecificIps.IPv6List,
     });
-    return wafState.allow(
+    return WafStatements.allow(
       "TrustedIp",
       priority,
-      wafState.ipv4v6Match(trustedIpv4Set, trustedIpv6Set)
+      WafStatements.ipv4v6Match(trustedIpv4Set, trustedIpv6Set)
     );
   }
 
   private createSizeRestriction(priority: number): CfnRuleGroup.RuleProperty {
-    return wafState.block(
+    return WafStatements.block(
       "SizeRestriction",
       priority,
-      wafState.oversizedRequestBody(16 * 1000)
+      WafStatements.oversizedRequestBody(16 * 1000)
     );
   }
 
@@ -124,26 +124,26 @@ export class Waf extends Construct {
       addresses: wafConfig.blockNonSpecificIps.IPv6List,
     });
 
-    return wafState.block(
+    return WafStatements.block(
       "AllowedIp",
       priority,
-      wafState.not(wafState.ipv4v6Match(allowedIpv4Set, allowedIpv6Set))
+      WafStatements.not(WafStatements.ipv4v6Match(allowedIpv4Set, allowedIpv6Set))
     );
   }
 
   private createRuleLimitRequests(priority: number): CfnRuleGroup.RuleProperty {
-    return wafState.block(
+    return WafStatements.block(
       "LimitRequests",
       priority,
-      wafState.rateBasedByIp(1000)
+      WafStatements.rateBasedByIp(1000)
     );
   }
 
   private createRuleGeoMatch(priority: number): CfnRuleGroup.RuleProperty {
-    return wafState.block(
+    return WafStatements.block(
       "GeoMatch",
       priority,
-      wafState.not(wafState.matchCountryCodes(["JP"]))
+      WafStatements.not(WafStatements.matchCountryCodes(["JP"]))
     );
   }
 
@@ -165,7 +165,7 @@ export class Waf extends Construct {
       //   priority: 20, // if not specified, priority is automatically assigned.
       //   overrideAction: "none",
       //   excludedRules: ["EXCLUDED_MANAGED_RULE"],
-      //   scopeDownStatement: wafState.not(wafState.startsWith("/admin")),
+      //   scopeDownStatement: WafStatements.not(WafStatements.startsWith("/admin")),
       // },
       {
         name: "AWSManagedRulesCommonRuleSet",
@@ -200,7 +200,7 @@ export class Waf extends Construct {
     ];
 
     managedRules.forEach((r, index) => {
-      var rule: CfnWebACL.RuleProperty = wafState.managedRuleGroup(
+      var rule: CfnWebACL.RuleProperty = WafStatements.managedRuleGroup(
         r,
         startPriorityNumber,
         index
