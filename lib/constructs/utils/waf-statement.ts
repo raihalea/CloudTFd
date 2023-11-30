@@ -7,6 +7,8 @@ interface listOfRules {
   excludedRules: string[];
   scopeDownStatement?: CfnWebACL.StatementProperty;
 }
+type LabelScope = "LABEL" | "NAMESPACE";
+
 export class WafStatements {
   static block(
     name: string,
@@ -43,10 +45,58 @@ export class WafStatements {
     };
   }
 
+  static not(
+    statement: CfnWebACL.StatementProperty
+  ): CfnWebACL.StatementProperty {
+    return {
+      notStatement: {
+        statement: statement,
+      },
+    };
+  }
+
+  static and(
+    ...statements: CfnWebACL.StatementProperty[]
+  ): CfnWebACL.StatementProperty {
+    return {
+      andStatement: {
+        statements: statements,
+      },
+    };
+  }
+
+  static or(
+    ...statements: CfnWebACL.StatementProperty[]
+  ): CfnWebACL.StatementProperty {
+    return {
+      orStatement: {
+        statements: statements,
+      },
+    };
+  }
+
+  static startsWith(path: string): CfnWebACL.StatementProperty {
+    return {
+      byteMatchStatement: {
+        fieldToMatch: {
+          uriPath: {},
+        },
+        positionalConstraint: "STARTS_WITH",
+        searchString: path,
+        textTransformations: [
+          {
+            priority: 0,
+            type: "NONE",
+          },
+        ],
+      },
+    };
+  }
+
   static managedRuleGroup(
     r: listOfRules,
     startPriorityNumber: number,
-    index: number,
+    index: number
   ): CfnRuleGroup.RuleProperty {
     var stateProp: CfnWebACL.StatementProperty = {
       managedRuleGroupStatement: {
@@ -72,22 +122,10 @@ export class WafStatements {
         metricName: r.name,
       },
     };
-    return rule
+    return rule;
   }
 
-  static not(
-    statement: CfnWebACL.StatementProperty
-  ): CfnWebACL.StatementProperty {
-    return {
-      notStatement: {
-        statement: statement,
-      },
-    };
-  }
-
-  static oversizedRequestBody(
-    size: number
-  ): CfnWebACL.StatementProperty {
+  static oversizedRequestBody(size: number): CfnWebACL.StatementProperty {
     return {
       sizeConstraintStatement: {
         fieldToMatch: {
@@ -125,20 +163,22 @@ export class WafStatements {
     };
   }
 
-  static startsWith(path: string): CfnWebACL.StatementProperty {
+  static matchLabel(scope: LabelScope, key: string,): CfnWebACL.StatementProperty {
     return {
-      byteMatchStatement: {
-        fieldToMatch: {
-          uriPath: {},
-        },
-        positionalConstraint: "STARTS_WITH",
-        searchString: path,
-        textTransformations: [
-          {
-            priority: 0,
-            type: "NONE",
-          },
-        ],
+      labelMatchStatement: {
+        scope,
+        key,
+      },
+    };
+  }
+
+  static matchIpList(ipList?: CfnIPSet): CfnWebACL.StatementProperty {
+    if (!ipList) {
+      return {};
+    }
+    return {
+      ipSetReferenceStatement: {
+        arn: ipList.attrArn,
       },
     };
   }
@@ -147,21 +187,6 @@ export class WafStatements {
     ipv4List: CfnIPSet,
     ipv6List: CfnIPSet
   ): CfnWebACL.StatementProperty {
-    return {
-      orStatement: {
-        statements: [
-          {
-            ipSetReferenceStatement: {
-              arn: ipv4List.attrArn,
-            },
-          },
-          {
-            ipSetReferenceStatement: {
-              arn: ipv6List.attrArn,
-            },
-          },
-        ],
-      },
-    };
+    return this.or(this.matchIpList(ipv4List), this.matchIpList(ipv6List));
   }
 }

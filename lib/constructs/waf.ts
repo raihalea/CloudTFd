@@ -1,7 +1,6 @@
 import { Construct } from "constructs";
 import { CfnRuleGroup, CfnWebACL, CfnIPSet } from "aws-cdk-lib/aws-wafv2";
 import { wafConfig } from "../config/config";
-// import * as WafStatements from "../constructs/utils/waf-statement";
 import { WafStatements } from "./utils/waf-statement";
 
 export interface WafProps {}
@@ -36,15 +35,25 @@ export class Waf extends Construct {
   private makeRules(): CfnRuleGroup.RuleProperty[] {
     const rules: CfnRuleGroup.RuleProperty[] = [];
 
-    // 信頼できるIPアドレスのWAFバイパス(管理者用)
-    if (wafConfig.allowTrustedIpsRule.isEnabled) {
-      const allowTrustedIpsRule = this.createRuleAllowTrustedIps(rules.length);
-      rules.push(allowTrustedIpsRule);
+    // 信頼できるIPアドレスのWAFバイパス(緊急用)
+    if (wafConfig.emergencyAllowIpsRule.isEnabled) {
+      const emergencyAllowIpsRule = this.createRuleEmergencyAllowIps(
+        rules.length
+      );
+      rules.push(emergencyAllowIpsRule);
+    }
+
+    // レートベースの制限ルールの追加
+    if (wafConfig.limitRequestsRule.isEnabled) {
+      const limitRequestsRule = this.createRuleLimitRequests(rules.length);
+      rules.push(limitRequestsRule);
     }
 
     // サイズ制限のルール追加
     if (wafConfig.sizeRestrictionRule.isEnabled) {
-      const sizeRestrictionRule = this.createSizeRestriction(rules.length);
+      const sizeRestrictionRule = this.createSizeRestrictionExcludedAdmin(
+        rules.length
+      );
       rules.push(sizeRestrictionRule);
     }
 
@@ -62,22 +71,19 @@ export class Waf extends Construct {
       rules.push(geoMatchRule);
     }
 
-    // レートベースの制限ルールの追加
-    if (wafConfig.limitRequestsRule.isEnabled) {
-      const limitRequestsRule = this.createRuleLimitRequests(rules.length);
-      rules.push(limitRequestsRule);
-    }
-
     // マネージドルールの追加
     if (wafConfig.managedRules.isEnabled) {
       const managedRuleGroups = this.createManagedRules(rules.length);
       rules.push(...managedRuleGroups);
+
+      const XsslabelMatchRule = this.createXSSLabelMatch(rules.length);
+      rules.push(XsslabelMatchRule);
     }
 
     return rules;
   }
 
-  private createRuleAllowTrustedIps(
+  private createRuleEmergencyAllowIps(
     priority: number
   ): CfnRuleGroup.RuleProperty {
     const trustedIpv4Set = new CfnIPSet(this, "TrustedIpv4Set", {
@@ -99,11 +105,47 @@ export class Waf extends Construct {
     );
   }
 
-  private createSizeRestriction(priority: number): CfnRuleGroup.RuleProperty {
+  private createSizeRestrictionExcludedAdmin(
+    priority: number
+  ): CfnRuleGroup.RuleProperty {
+    // 管理用IP　（ファイルアップロード）
+    // TODO: 全てのIPを対象にする場合を考える
+    const adminIpv4Set = new CfnIPSet(this, "AdminIpv4Set", {
+      name: "AdminIpv4Set",
+      scope: "CLOUDFRONT",
+      ipAddressVersion: "IPV4",
+      addresses: wafConfig.sizeRestrictionRule.IPv4List,
+    });
+    const adminIpv6Set = new CfnIPSet(this, "AdminIpv6Set", {
+      name: "AdminIpv6Set",
+      scope: "CLOUDFRONT",
+      ipAddressVersion: "IPV6",
+      addresses: wafConfig.sizeRestrictionRule.IPv6List,
+    });
+
     return WafStatements.block(
       "SizeRestriction",
       priority,
-      WafStatements.oversizedRequestBody(16 * 1000)
+      WafStatements.and(
+        WafStatements.oversizedRequestBody(16 * 1000),
+        WafStatements.not(
+          WafStatements.and(
+            WafStatements.or(
+              WafStatements.startsWith("/admin/"),
+              WafStatements.startsWith("/api/")
+            ),
+            WafStatements.ipv4v6Match(adminIpv4Set, adminIpv6Set)
+          )
+        )
+      )
+    );
+  }
+
+  private createRuleLimitRequests(priority: number): CfnRuleGroup.RuleProperty {
+    return WafStatements.block(
+      "LimitRequests",
+      priority,
+      WafStatements.rateBasedByIp(1000)
     );
   }
 
@@ -127,15 +169,9 @@ export class Waf extends Construct {
     return WafStatements.block(
       "AllowedIp",
       priority,
-      WafStatements.not(WafStatements.ipv4v6Match(allowedIpv4Set, allowedIpv6Set))
-    );
-  }
-
-  private createRuleLimitRequests(priority: number): CfnRuleGroup.RuleProperty {
-    return WafStatements.block(
-      "LimitRequests",
-      priority,
-      WafStatements.rateBasedByIp(1000)
+      WafStatements.not(
+        WafStatements.ipv4v6Match(allowedIpv4Set, allowedIpv6Set)
+      )
     );
   }
 
@@ -144,6 +180,20 @@ export class Waf extends Construct {
       "GeoMatch",
       priority,
       WafStatements.not(WafStatements.matchCountryCodes(["JP"]))
+    );
+  }
+
+  private createXSSLabelMatch(priority: number): CfnRuleGroup.RuleProperty {
+    return WafStatements.block(
+      "XssLabelMatch",
+      priority,
+      WafStatements.and(
+        WafStatements.matchLabel(
+          "LABEL",
+          "awswaf:managed:aws:core-rule-set:CrossSiteScripting_Body"
+        ),
+        WafStatements.not(WafStatements.startsWith("/api/"))
+      )
     );
   }
 
@@ -170,7 +220,7 @@ export class Waf extends Construct {
       {
         name: "AWSManagedRulesCommonRuleSet",
         overrideAction: "none",
-        excludedRules: ["SizeRestrictions_BODY"],
+        excludedRules: ["SizeRestrictions_BODY", "CrossSiteScripting_BODY"],
       },
       {
         name: "AWSManagedRulesAmazonIpReputationList",
