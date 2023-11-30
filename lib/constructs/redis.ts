@@ -34,11 +34,9 @@ export class Redis extends Construct {
       description: "redis-subnet-group",
     });
 
-    const REDIS_USER = redisConfig.REDIS_USER;
-    const REDIS_PORT = redisConfig.REDIS_PORT;
     this.redisAuth = new Secret(this, "RedisSecret", {
       generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: REDIS_USER }),
+        secretStringTemplate: JSON.stringify({ username: redisConfig.DB_USER }),
         generateStringKey: "password",
         passwordLength: 128,
         excludePunctuation: true,
@@ -62,7 +60,7 @@ export class Redis extends Construct {
       authToken: SecretValue.secretsManager(this.redisAuth.secretArn, {
         jsonField: "password",
       }).unsafeUnwrap(),
-      port: REDIS_PORT,
+      port: redisConfig.DB_PORT,
     });
     this.elasticache_redis.addDependency(redisSubnetGroup);
   }

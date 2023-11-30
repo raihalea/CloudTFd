@@ -1,7 +1,8 @@
 import { Construct } from "constructs";
 import { CfnRuleGroup, CfnWebACL, CfnIPSet } from "aws-cdk-lib/aws-wafv2";
 import { wafConfig } from "../config/config";
-import { managedRules } from "../config/wafManagedRule-config";
+// import { managedRules } from "../config/wafManagedRule-config";
+import * as wafState from "../constructs/utils/waf-statement";
 
 export interface WafProps {}
 
@@ -38,18 +39,20 @@ export class Waf extends Construct {
     // 信頼できるIPアドレスのWAFバイパス(管理者用)
     if (wafConfig.allowTrustedIpsRule.isEnabled) {
       const allowTrustedIpsRule = this.createRuleAllowTrustedIps(rules.length);
-      rules.push(allowTrustedIpsRule)
+      rules.push(allowTrustedIpsRule);
     }
 
     // サイズ制限のルール追加
     if (wafConfig.sizeRestrictionRule.isEnabled) {
       const sizeRestrictionRule = this.createSizeRestriction(rules.length);
-      rules.push(sizeRestrictionRule)
+      rules.push(sizeRestrictionRule);
     }
 
     // IP制限ルールの追加
     if (wafConfig.blockNonSpecificIps.isEnabled) {
-      const blockNonSpecificIpsRule = this.createRuleBlockNonSpecificIps(rules.length);
+      const blockNonSpecificIpsRule = this.createRuleBlockNonSpecificIps(
+        rules.length
+      );
       rules.push(blockNonSpecificIpsRule);
     }
 
@@ -67,14 +70,16 @@ export class Waf extends Construct {
 
     // マネージドルールの追加
     if (wafConfig.managedRules.isEnabled) {
-      const managedRules = this.createManagedRules(rules.length);
-      rules.push(...managedRules);
+      const managedRuleGroups = this.createManagedRules(rules.length);
+      rules.push(...managedRuleGroups);
     }
 
     return rules;
   }
 
-  private createRuleAllowTrustedIps(priority: number): CfnRuleGroup.RuleProperty {
+  private createRuleAllowTrustedIps(
+    priority: number
+  ): CfnRuleGroup.RuleProperty {
     const trustedIpv4Set = new CfnIPSet(this, "TrustedIpv4Set", {
       name: "TrustedIpv4Set",
       scope: "CLOUDFRONT",
@@ -87,64 +92,24 @@ export class Waf extends Construct {
       ipAddressVersion: "IPV6",
       addresses: wafConfig.blockNonSpecificIps.IPv6List,
     });
-
-    return {
-      name: "TrustedIp",
-      priority: priority,
-      action: { allow: {} },
-      statement: {
-        orStatement: {
-          statements: [
-            {
-              ipSetReferenceStatement: {
-                arn: trustedIpv4Set.attrArn,
-              },
-            },
-            {
-              ipSetReferenceStatement: {
-                arn: trustedIpv6Set.attrArn,
-              },
-            },
-          ],
-        },
-      },
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: "TrustedIp",
-      },
-    };
+    return wafState.allow(
+      "TrustedIp",
+      priority,
+      wafState.ipv4v6Match(trustedIpv4Set, trustedIpv6Set)
+    );
   }
 
   private createSizeRestriction(priority: number): CfnRuleGroup.RuleProperty {
-    return {
-      name: "SizeRestriction",
-      priority: priority,
-      action: { block: {} },
-      statement: {
-        sizeConstraintStatement: {
-          fieldToMatch: {
-            body: {},
-          },
-          comparisonOperator: "GT",
-          size: 16 * 1000,
-          textTransformations: [
-            {
-              priority: 0,
-              type: "NONE",
-            },
-          ],
-        },
-      },
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: "SizeRestriction",
-      },
-    };
+    return wafState.block(
+      "SizeRestriction",
+      priority,
+      wafState.oversizedRequestBody(16 * 1000)
+    );
   }
 
-  private createRuleBlockNonSpecificIps(priority: number): CfnRuleGroup.RuleProperty {
+  private createRuleBlockNonSpecificIps(
+    priority: number
+  ): CfnRuleGroup.RuleProperty {
     // IP制限ルールの具体的な定義
     const allowedIpv4Set = new CfnIPSet(this, "AllowedIpv4Set", {
       name: "AllowedIpv4Set",
@@ -159,80 +124,27 @@ export class Waf extends Construct {
       addresses: wafConfig.blockNonSpecificIps.IPv6List,
     });
 
-    return {
-      name: "AllowedIp",
-      priority: priority,
-      action: { block: {} },
-      statement: {
-        notStatement: {
-          statement: {
-            orStatement: {
-              statements: [
-                {
-                  ipSetReferenceStatement: {
-                    arn: allowedIpv4Set.attrArn,
-                  },
-                },
-                {
-                  ipSetReferenceStatement: {
-                    arn: allowedIpv6Set.attrArn,
-                  },
-                },
-              ],
-            },
-          },
-        },
-      },
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: "AllowedIp",
-      },
-    };
+    return wafState.block(
+      "AllowedIp",
+      priority,
+      wafState.not(wafState.ipv4v6Match(allowedIpv4Set, allowedIpv6Set))
+    );
   }
 
   private createRuleLimitRequests(priority: number): CfnRuleGroup.RuleProperty {
-    return {
-      name: "LimitRequests",
-      priority: priority,
-      action: { block: {} },
-      statement: {
-        rateBasedStatement: {
-          limit: 1000,
-          aggregateKeyType: "IP",
-        },
-      },
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: "LimitRequests",
-      },
-    };
+    return wafState.block(
+      "LimitRequests",
+      priority,
+      wafState.rateBasedByIp(1000)
+    );
   }
 
   private createRuleGeoMatch(priority: number): CfnRuleGroup.RuleProperty {
-    return {
-      name: "GeoMatch",
-      priority: priority,
-      action: {
-        block: {}, // To disable, change to *count*
-      },
-      statement: {
-        notStatement: {
-          statement: {
-            geoMatchStatement: {
-              // block connection if source not in the below country list
-              countryCodes: ["JP"],
-            },
-          },
-        },
-      },
-      visibilityConfig: {
-        sampledRequestsEnabled: true,
-        cloudWatchMetricsEnabled: true,
-        metricName: "GeoMatch",
-      },
-    };
+    return wafState.block(
+      "GeoMatch",
+      priority,
+      wafState.not(wafState.matchCountryCodes(["JP"]))
+    );
   }
 
   // マネージドルールの生成
@@ -240,34 +152,63 @@ export class Waf extends Construct {
     startPriorityNumber: number
   ): CfnRuleGroup.RuleProperty[] {
     var rules: CfnRuleGroup.RuleProperty[] = [];
-    managedRules.forEach((r, index) => {
-      var stateProp: CfnWebACL.StatementProperty = {
-        managedRuleGroupStatement: {
-          name: r.name,
-          vendorName: "AWS",
-          excludedRules: r.excludedRules.map((ruleName) => ({
-            name: ruleName,
-          })),
-          scopeDownStatement: r.scopeDownStatement,
-        },
-      };
-      var overrideAction: CfnWebACL.OverrideActionProperty = { none: {} };
+    interface listOfRules {
+      name: string;
+      priority?: number;
+      overrideAction: string;
+      excludedRules: string[];
+      scopeDownStatement?: CfnWebACL.StatementProperty;
+    }
+    const managedRules: listOfRules[] = [
+      // {
+      //   name: "EXAMPLE_MANAGED_RULEGROUP",
+      //   priority: 20, // if not specified, priority is automatically assigned.
+      //   overrideAction: "none",
+      //   excludedRules: ["EXCLUDED_MANAGED_RULE"],
+      //   scopeDownStatement: wafState.not(wafState.startsWith("/admin")),
+      // },
+      {
+        name: "AWSManagedRulesCommonRuleSet",
+        overrideAction: "none",
+        excludedRules: ["SizeRestrictions_BODY"],
+      },
+      {
+        name: "AWSManagedRulesAmazonIpReputationList",
+        overrideAction: "none",
+        excludedRules: [],
+      },
+      {
+        name: "AWSManagedRulesKnownBadInputsRuleSet",
+        overrideAction: "none",
+        excludedRules: [],
+      },
+      {
+        name: "AWSManagedRulesAnonymousIpList",
+        overrideAction: "none",
+        excludedRules: [],
+      },
+      {
+        name: "AWSManagedRulesLinuxRuleSet",
+        overrideAction: "none",
+        excludedRules: [],
+      },
+      {
+        name: "AWSManagedRulesSQLiRuleSet",
+        overrideAction: "none",
+        excludedRules: [],
+      },
+    ];
 
-      var rule: CfnWebACL.RuleProperty = {
-        name: r.name,
-        priority:
-          r.priority !== undefined ? r.priority : startPriorityNumber + index,
-        overrideAction: overrideAction,
-        statement: stateProp,
-        visibilityConfig: {
-          sampledRequestsEnabled: true,
-          cloudWatchMetricsEnabled: true,
-          metricName: r.name,
-        },
-      };
+    managedRules.forEach((r, index) => {
+      var rule: CfnWebACL.RuleProperty = wafState.managedRuleGroup(
+        r,
+        startPriorityNumber,
+        index
+      );
+
       rules.push(rule);
-    }); // forEach
+    });
 
     return rules;
   }
-} // class
+}
