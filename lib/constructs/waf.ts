@@ -1,5 +1,12 @@
 import { Construct } from "constructs";
-import { CfnRuleGroup, CfnWebACL, CfnIPSet } from "aws-cdk-lib/aws-wafv2";
+import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
+import {
+  CfnRuleGroup,
+  CfnWebACL,
+  CfnIPSet,
+  CfnLoggingConfiguration,
+} from "aws-cdk-lib/aws-wafv2";
+import { Bucket } from "aws-cdk-lib/aws-s3";
 import { wafConfig } from "../config/config";
 import { WafStatements } from "./utils/waf-statement";
 
@@ -15,6 +22,23 @@ export class Waf extends Construct {
   constructor(scope: Construct, id: string, props?: WafProps) {
     super(scope, id);
 
+    const stack = Stack.of(this);
+    const stackName = stack.stackName.toLowerCase();
+    const region = stack.region
+
+    const bucketName = `aws-waf-logs-${stackName}-${region}`;
+    const wafBucket = new Bucket(this, "S3", {
+      bucketName: bucketName,
+      enforceSSL: true,
+      autoDeleteObjects: true,
+      removalPolicy: RemovalPolicy.DESTROY,
+      lifecycleRules: [
+        {
+          expiration: Duration.days(7),
+        },
+      ],
+    });
+
     const wafAclCloudFront = new CfnWebACL(this, "WafCloudFront", {
       defaultAction: { allow: {} },
       scope: "CLOUDFRONT",
@@ -24,6 +48,11 @@ export class Waf extends Construct {
         sampledRequestsEnabled: true,
       },
       rules: this.makeRules(),
+    });
+
+    new CfnLoggingConfiguration(this, "WafLogging", {
+      resourceArn: wafAclCloudFront.attrArn,
+      logDestinationConfigs: [wafBucket.bucketArn],
     });
 
     if (wafConfig.isEnabled) {
@@ -131,8 +160,9 @@ export class Waf extends Construct {
         WafStatements.not(
           WafStatements.and(
             WafStatements.or(
-              WafStatements.startsWith("/admin/"),
-              WafStatements.startsWith("/api/")
+              WafStatements.startsWithURL("/admin/"),
+              WafStatements.startsWithURL("/api/"),
+              WafStatements.exactlyURL("/setup")
             ),
             WafStatements.ipv4v6Match(adminIpv4Set, adminIpv6Set)
           )
@@ -192,7 +222,12 @@ export class Waf extends Construct {
           "LABEL",
           "awswaf:managed:aws:core-rule-set:CrossSiteScripting_Body"
         ),
-        WafStatements.not(WafStatements.startsWith("/api/"))
+        WafStatements.not(
+          WafStatements.or(
+            WafStatements.startsWithURL("/api/"),
+            WafStatements.exactlyURL("/setup")
+          )
+        )
       )
     );
   }
@@ -215,7 +250,7 @@ export class Waf extends Construct {
       //   priority: 20, // if not specified, priority is automatically assigned.
       //   overrideAction: "none",
       //   excludedRules: ["EXCLUDED_MANAGED_RULE"],
-      //   scopeDownStatement: WafStatements.not(WafStatements.startsWith("/admin")),
+      //   scopeDownStatement: WafStatements.not(WafStatements.startsWithURL("/admin")),
       // },
       {
         name: "AWSManagedRulesCommonRuleSet",

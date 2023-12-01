@@ -75,13 +75,31 @@ export class WafStatements {
     };
   }
 
-  static startsWith(path: string): CfnWebACL.StatementProperty {
+  static startsWithURL(path: string): CfnWebACL.StatementProperty {
     return {
       byteMatchStatement: {
         fieldToMatch: {
           uriPath: {},
         },
         positionalConstraint: "STARTS_WITH",
+        searchString: path,
+        textTransformations: [
+          {
+            priority: 0,
+            type: "NONE",
+          },
+        ],
+      },
+    };
+  }
+
+  static exactlyURL(path: string): CfnWebACL.StatementProperty {
+    return {
+      byteMatchStatement: {
+        fieldToMatch: {
+          uriPath: {},
+        },
+        positionalConstraint: "EXACTLY",
         searchString: path,
         textTransformations: [
           {
