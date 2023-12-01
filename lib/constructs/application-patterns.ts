@@ -60,6 +60,7 @@ export class ApplicationPatterns extends Construct {
     const loadBalancedFargateService =
     new ApplicationLoadBalancedFargateService(this, "Service", {
       cluster,
+      // memoryLimitMiB: 1024,
       memoryLimitMiB: 1024,
       desiredCount: 1,
       cpu: 512,

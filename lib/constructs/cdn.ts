@@ -1,4 +1,4 @@
-import { Duration } from "aws-cdk-lib";
+import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { ARecord, AaaaRecord, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { CloudFrontTarget } from "aws-cdk-lib/aws-route53-targets";
@@ -20,6 +20,7 @@ import { BucketWithAccessKey } from "./bucket";
 import { Domain } from "./utils/domain";
 import { domainConfig, basicAuthConfig } from "../config/config";
 import { BasicAuth } from "./basic-auth";
+import { Bucket, ObjectOwnership } from "aws-cdk-lib/aws-s3";
 
 export interface CdnProps {
   readonly bucketWithAccessKey: BucketWithAccessKey;
@@ -67,7 +68,9 @@ export class Cdn extends Construct {
     const albOrigin = new HttpOrigin(`${domainConfig.ALB_HOSTNAME}.${domainConfig.DOMAIN_NAME}`)
     const s3Origin = new S3Origin(bucketWithAccessKey.bucket);
     const basicAuth = new BasicAuth(this, "BasicAuth");
-    const functionAssociations = basicAuthConfig.IsEnabled ? [basicAuth.functionAssociation] : [];
+    const functionAssociations = basicAuthConfig.IsEnabled
+      ? [basicAuth.functionAssociation]
+      : [];
 
     // prettier-ignore
     const distribution = new Distribution(this, "CloudFront", {
@@ -125,7 +128,18 @@ export class Cdn extends Construct {
       },
       domainNames: [ctfDomain.fqdn],
       certificate: ctfDomain.certificate,
-      webAclId
+      webAclId:webAclId,
+      logBucket: new Bucket(this, "CfLogBucket",{
+        objectOwnership: ObjectOwnership.BUCKET_OWNER_PREFERRED,
+        enforceSSL: true,
+        autoDeleteObjects: true,
+        removalPolicy: RemovalPolicy.DESTROY,
+        lifecycleRules: [
+          {
+            expiration: Duration.days(7),
+          },
+        ],
+      })
     });
 
     new ARecord(this, "ARecord", {

@@ -7,6 +7,8 @@ interface listOfRules {
   excludedRules: string[];
   scopeDownStatement?: CfnWebACL.StatementProperty;
 }
+type LabelScope = "LABEL" | "NAMESPACE";
+
 export class WafStatements {
   static block(
     name: string,
@@ -43,10 +45,82 @@ export class WafStatements {
     };
   }
 
+  static not(
+    statement: CfnWebACL.StatementProperty
+  ): CfnWebACL.StatementProperty {
+    return {
+      notStatement: {
+        statement: statement,
+      },
+    };
+  }
+
+  static and(
+    ...statements: CfnWebACL.StatementProperty[]
+  ): CfnWebACL.StatementProperty {
+    if (statements.length === 1) {
+      return statements[0];
+    }
+    return {
+      andStatement: {
+        statements: statements,
+      },
+    };
+  }
+
+  static or(
+    ...statements: CfnWebACL.StatementProperty[]
+  ): CfnWebACL.StatementProperty {
+    if (statements.length === 1) {
+      return statements[0];
+    }
+    return {
+      orStatement: {
+        statements: statements,
+      },
+    };
+  }
+
+  static startsWithURL(path: string): CfnWebACL.StatementProperty {
+    return {
+      byteMatchStatement: {
+        fieldToMatch: {
+          uriPath: {},
+        },
+        positionalConstraint: "STARTS_WITH",
+        searchString: path,
+        textTransformations: [
+          {
+            priority: 0,
+            type: "NONE",
+          },
+        ],
+      },
+    };
+  }
+
+  static exactlyURL(path: string): CfnWebACL.StatementProperty {
+    return {
+      byteMatchStatement: {
+        fieldToMatch: {
+          uriPath: {},
+        },
+        positionalConstraint: "EXACTLY",
+        searchString: path,
+        textTransformations: [
+          {
+            priority: 0,
+            type: "NONE",
+          },
+        ],
+      },
+    };
+  }
+
   static managedRuleGroup(
     r: listOfRules,
     startPriorityNumber: number,
-    index: number,
+    index: number
   ): CfnRuleGroup.RuleProperty {
     var stateProp: CfnWebACL.StatementProperty = {
       managedRuleGroupStatement: {
@@ -72,22 +146,10 @@ export class WafStatements {
         metricName: r.name,
       },
     };
-    return rule
+    return rule;
   }
 
-  static not(
-    statement: CfnWebACL.StatementProperty
-  ): CfnWebACL.StatementProperty {
-    return {
-      notStatement: {
-        statement: statement,
-      },
-    };
-  }
-
-  static oversizedRequestBody(
-    size: number
-  ): CfnWebACL.StatementProperty {
+  static oversizedRequestBody(size: number): CfnWebACL.StatementProperty {
     return {
       sizeConstraintStatement: {
         fieldToMatch: {
@@ -125,43 +187,41 @@ export class WafStatements {
     };
   }
 
-  static startsWith(path: string): CfnWebACL.StatementProperty {
+  static matchLabel(
+    scope: LabelScope,
+    key: string
+  ): CfnWebACL.StatementProperty {
     return {
-      byteMatchStatement: {
-        fieldToMatch: {
-          uriPath: {},
-        },
-        positionalConstraint: "STARTS_WITH",
-        searchString: path,
-        textTransformations: [
-          {
-            priority: 0,
-            type: "NONE",
-          },
-        ],
+      labelMatchStatement: {
+        scope,
+        key,
       },
     };
   }
 
-  static ipv4v6Match(
-    ipv4List: CfnIPSet,
-    ipv6List: CfnIPSet
-  ): CfnWebACL.StatementProperty {
+  static matchIpList(ipList?: CfnIPSet): CfnWebACL.StatementProperty {
+    if (!ipList) {
+      return {};
+    }
     return {
-      orStatement: {
-        statements: [
-          {
-            ipSetReferenceStatement: {
-              arn: ipv4List.attrArn,
-            },
-          },
-          {
-            ipSetReferenceStatement: {
-              arn: ipv6List.attrArn,
-            },
-          },
-        ],
+      ipSetReferenceStatement: {
+        arn: ipList.attrArn,
       },
     };
+  }
+
+  static ipv4v6Match(ipSets: CfnIPSet[]): CfnWebACL.StatementProperty {
+    // 有効なIPセットに対するステートメントを格納するための配列
+    const ipStatements = ipSets
+      .filter((ipSet) => ipSet && ipSet.addresses.length > 0)
+      .map((ipSet) => this.matchIpList(ipSet));
+
+    // ステートメントがない場合、空のオブジェクトを返す
+    if (ipStatements.length === 0) {
+      throw new Error("Both IPv4List and IPv6List are empty or undefined.");
+    }
+
+    // 複数のステートメントがある場合、orで結合
+    return this.or(...ipStatements);
   }
 }
