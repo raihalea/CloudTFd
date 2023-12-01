@@ -6,7 +6,8 @@ import {
   CfnIPSet,
   CfnLoggingConfiguration,
 } from "aws-cdk-lib/aws-wafv2";
-import { Bucket } from "aws-cdk-lib/aws-s3";
+// import { Bucket } from "aws-cdk-lib/aws-s3";
+import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { wafConfig } from "../config/config";
 import { WafStatements } from "./utils/waf-statement";
 
@@ -24,19 +25,24 @@ export class Waf extends Construct {
 
     const stack = Stack.of(this);
     const stackName = stack.stackName.toLowerCase();
-    const region = stack.region
+    const region = stack.region;
+    const logName = `aws-waf-logs-${stackName}-${region}`;
+    
+    // const wafBucket = new Bucket(this, "S3", {
+    //   bucketName: logName,
+    //   enforceSSL: true,
+    //   autoDeleteObjects: true,
+    //   removalPolicy: RemovalPolicy.DESTROY,
+    //   lifecycleRules: [
+    //     {
+    //       expiration: Duration.days(7),
+    //     },
+    //   ],
+    // });
 
-    const bucketName = `aws-waf-logs-${stackName}-${region}`;
-    const wafBucket = new Bucket(this, "S3", {
-      bucketName: bucketName,
-      enforceSSL: true,
-      autoDeleteObjects: true,
-      removalPolicy: RemovalPolicy.DESTROY,
-      lifecycleRules: [
-        {
-          expiration: Duration.days(7),
-        },
-      ],
+    const logGroup = new LogGroup(this, "WafLogGroup", {
+      logGroupName: logName,
+      retention: RetentionDays.ONE_WEEK,
     });
 
     const wafAclCloudFront = new CfnWebACL(this, "WafCloudFront", {
@@ -52,7 +58,7 @@ export class Waf extends Construct {
 
     new CfnLoggingConfiguration(this, "WafLogging", {
       resourceArn: wafAclCloudFront.attrArn,
-      logDestinationConfigs: [wafBucket.bucketArn],
+      logDestinationConfigs: [logGroup.logGroupArn],
     });
 
     if (wafConfig.isEnabled) {
