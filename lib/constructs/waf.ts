@@ -27,7 +27,7 @@ export class Waf extends Construct {
     const stackName = stack.stackName.toLowerCase();
     const region = stack.region;
     const logName = `aws-waf-logs-${stackName}-${region}`;
-    
+
     // const wafBucket = new Bucket(this, "S3", {
     //   bucketName: logName,
     //   enforceSSL: true,
@@ -121,22 +121,39 @@ export class Waf extends Construct {
   private createRuleEmergencyAllowIps(
     priority: number
   ): CfnRuleGroup.RuleProperty {
-    const trustedIpv4Set = new CfnIPSet(this, "TrustedIpv4Set", {
-      name: "TrustedIpv4Set",
-      scope: "CLOUDFRONT",
-      ipAddressVersion: "IPV4",
-      addresses: wafConfig.blockNonSpecificIps.IPv4List,
-    });
-    const trustedIpv6Set = new CfnIPSet(this, "TrustedIpv6Set", {
-      name: "TrustedIpv6Set",
-      scope: "CLOUDFRONT",
-      ipAddressVersion: "IPV6",
-      addresses: wafConfig.blockNonSpecificIps.IPv6List,
-    });
+    // IPセットのリストを動的に構築
+    const ipSetList = [];
+
+    if (
+      wafConfig.blockNonSpecificIps.IPv4List &&
+      wafConfig.blockNonSpecificIps.IPv4List.length > 0
+    ) {
+      const trustedIpv4Set = new CfnIPSet(this, "TrustedIpv4Set", {
+        name: "TrustedIpv4Set",
+        scope: "CLOUDFRONT",
+        ipAddressVersion: "IPV4",
+        addresses: wafConfig.blockNonSpecificIps.IPv4List,
+      });
+      ipSetList.push(trustedIpv4Set);
+    }
+
+    if (
+      wafConfig.blockNonSpecificIps.IPv6List &&
+      wafConfig.blockNonSpecificIps.IPv6List.length > 0
+    ) {
+      const trustedIpv6Set = new CfnIPSet(this, "TrustedIpv6Set", {
+        name: "TrustedIpv6Set",
+        scope: "CLOUDFRONT",
+        ipAddressVersion: "IPV6",
+        addresses: wafConfig.blockNonSpecificIps.IPv6List,
+      });
+      ipSetList.push(trustedIpv6Set);
+    }
+
     return WafStatements.allow(
       "TrustedIp",
       priority,
-      WafStatements.ipv4v6Match(trustedIpv4Set, trustedIpv6Set)
+      WafStatements.ipv4v6Match(ipSetList)
     );
   }
 
@@ -144,35 +161,56 @@ export class Waf extends Construct {
     priority: number
   ): CfnRuleGroup.RuleProperty {
     // 管理用IP　（ファイルアップロード）
-    // TODO: 全てのIPを対象にする場合を考える
-    const adminIpv4Set = new CfnIPSet(this, "AdminIpv4Set", {
-      name: "AdminIpv4Set",
-      scope: "CLOUDFRONT",
-      ipAddressVersion: "IPV4",
-      addresses: wafConfig.sizeRestrictionRule.IPv4List,
-    });
-    const adminIpv6Set = new CfnIPSet(this, "AdminIpv6Set", {
-      name: "AdminIpv6Set",
-      scope: "CLOUDFRONT",
-      ipAddressVersion: "IPV6",
-      addresses: wafConfig.sizeRestrictionRule.IPv6List,
-    });
+
+    let adminIpv4Set, adminIpv6Set;
+    const ipSetList = [];
+    if (
+      wafConfig.sizeRestrictionRule.IPv4List &&
+      wafConfig.sizeRestrictionRule.IPv4List.length > 0
+    ) {
+      adminIpv4Set = new CfnIPSet(this, "AdminIpv4Set", {
+        name: "AdminIpv4Set",
+        scope: "CLOUDFRONT",
+        ipAddressVersion: "IPV4",
+        addresses: wafConfig.sizeRestrictionRule.IPv4List,
+      });
+      ipSetList.push(adminIpv4Set);
+    }
+    if (
+      wafConfig.sizeRestrictionRule.IPv6List &&
+      wafConfig.sizeRestrictionRule.IPv6List.length > 0
+    ) {
+      adminIpv6Set = new CfnIPSet(this, "AdminIpv6Set", {
+        name: "AdminIpv6Set",
+        scope: "CLOUDFRONT",
+        ipAddressVersion: "IPV6",
+        addresses: wafConfig.sizeRestrictionRule.IPv6List,
+      });
+      ipSetList.push(adminIpv6Set);
+    }
+
+    const urlConditons = WafStatements.or(
+      WafStatements.startsWithURL("/admin/"),
+      WafStatements.startsWithURL("/api/"),
+      WafStatements.exactlyURL("/setup")
+    );
+
+    let combinedConditions;
+    if (ipSetList.length === 0) {
+      combinedConditions = urlConditons;
+    } else {
+      combinedConditions = WafStatements.and(
+        urlConditons,
+        WafStatements.ipv4v6Match(ipSetList)
+      );
+    }
 
     return WafStatements.block(
       "SizeRestriction",
       priority,
       WafStatements.and(
         WafStatements.oversizedRequestBody(16 * 1000),
-        WafStatements.not(
-          WafStatements.and(
-            WafStatements.or(
-              WafStatements.startsWithURL("/admin/"),
-              WafStatements.startsWithURL("/api/"),
-              WafStatements.exactlyURL("/setup")
-            ),
-            WafStatements.ipv4v6Match(adminIpv4Set, adminIpv6Set)
-          )
-        )
+        WafStatements.not(combinedConditions)
       )
     );
   }
@@ -188,26 +226,39 @@ export class Waf extends Construct {
   private createRuleBlockNonSpecificIps(
     priority: number
   ): CfnRuleGroup.RuleProperty {
-    // IP制限ルールの具体的な定義
-    const allowedIpv4Set = new CfnIPSet(this, "AllowedIpv4Set", {
-      name: "AllowedIpv4Set",
-      scope: "CLOUDFRONT",
-      ipAddressVersion: "IPV4",
-      addresses: wafConfig.blockNonSpecificIps.IPv4List,
-    });
-    const allowedIpv6Set = new CfnIPSet(this, "AllowedIpv6Set", {
-      name: "AllowedIpv6Set",
-      scope: "CLOUDFRONT",
-      ipAddressVersion: "IPV6",
-      addresses: wafConfig.blockNonSpecificIps.IPv6List,
-    });
+    // IPセットのリストを動的に構築
+    const ipSetList = [];
+
+    if (
+      wafConfig.blockNonSpecificIps.IPv4List &&
+      wafConfig.blockNonSpecificIps.IPv4List.length > 0
+    ) {
+      const allowedIpv4Set = new CfnIPSet(this, "AllowedIpv4Set", {
+        name: "AllowedIpv4Set",
+        scope: "CLOUDFRONT",
+        ipAddressVersion: "IPV4",
+        addresses: wafConfig.blockNonSpecificIps.IPv4List,
+      });
+      ipSetList.push(allowedIpv4Set);
+    }
+
+    if (
+      wafConfig.blockNonSpecificIps.IPv6List &&
+      wafConfig.blockNonSpecificIps.IPv6List.length > 0
+    ) {
+      const allowedIpv6Set = new CfnIPSet(this, "AllowedIpv6Set", {
+        name: "AllowedIpv6Set",
+        scope: "CLOUDFRONT",
+        ipAddressVersion: "IPV6",
+        addresses: wafConfig.blockNonSpecificIps.IPv6List,
+      });
+      ipSetList.push(allowedIpv6Set);
+    }
 
     return WafStatements.block(
       "AllowedIp",
       priority,
-      WafStatements.not(
-        WafStatements.ipv4v6Match(allowedIpv4Set, allowedIpv6Set)
-      )
+      WafStatements.not(WafStatements.ipv4v6Match(ipSetList))
     );
   }
 
